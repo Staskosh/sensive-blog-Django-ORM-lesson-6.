@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from django.db.models import Count, Prefetch
 from django.shortcuts import render, get_object_or_404
 from blog.models import Post, Tag
@@ -13,7 +14,7 @@ def serialize_post(post):
         'published_at': post.published_at,
         'slug': post.slug,
         'tags': post.tags.all(),
-        'first_tag_title': post.tags.all()[0].title,
+        'first_tag_title': post.tags.first().title,
     }
 
 
@@ -26,9 +27,9 @@ def serialize_tag(tag):
 
 def index(request):
     most_popular_posts = Post.objects.popular().prefetch_related('author', 'tags')[:5].fetch_with_comments_count()
-    most_fresh_posts = Post.objects.prefetch_related('author', 'tags').annotate(
-        comments_count=Count('comments')).order_by('-published_at')[:5]
-    most_popular_tags = Tag.objects.popular().prefetch_related(Prefetch('posts'))[:5]
+    most_fresh_posts = Post.objects.prefetch_related('author', 'tags').order_by('-published_at').annotate(
+        comments_count=Count('comments'))[:5]
+    most_popular_tags = Tag.objects.popular().prefetch_related('posts')[:5]
 
     context = {
         'most_popular_posts': [
@@ -44,7 +45,7 @@ def post_detail(request, slug):
     posts = Post.objects.annotate(likes_count=Count('likes')).select_related('author')
     post = get_object_or_404(posts, slug=slug)
     post_comments = post.comments.all().select_related('author')
-    related_tags = post.tags.all().prefetch_related(Prefetch('posts'))
+    related_tags = post.tags.all().prefetch_related('posts')
     serialized_post = {
         'title': post.title,
         'text': post.text,
@@ -56,7 +57,7 @@ def post_detail(request, slug):
         'slug': post.slug,
         'tags': related_tags,
     }
-    most_popular_tags = Tag.objects.popular().prefetch_related(Prefetch('posts'))[:5]
+    most_popular_tags = Tag.objects.popular().prefetch_related('posts')[:5]
     most_popular_posts = Post.objects.popular().prefetch_related('author', 'tags')[:5].fetch_with_comments_count()
 
     context = {
